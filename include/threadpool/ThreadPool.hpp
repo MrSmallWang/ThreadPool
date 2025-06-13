@@ -42,6 +42,12 @@ public:
     Any(Any&&) = default;
     Any& operator = (Any&&) = default;
 
+    // construct func
+    template<typename T>
+    Any(T& data)
+        : base_(std::make_unique<Derive<std::decay_t<T>>>(std::forward<T>(data)))
+    {}
+
     template<typename T>
     T cast_()
     {
@@ -68,7 +74,8 @@ private:
                 : data_(data)
             {}
             ~Derive() = default;
-        private:
+            
+            // public necessary
             T data_;
     };
     // 指向派生类的基类指针
@@ -77,19 +84,34 @@ private:
 
 class Task;
 
+// TODO 1. integrate menmber variable into a struct 
+// 2. make shared ptr of the struct to the Result class
+// 3. solve the problem of dangling pointer and revise the logic of setValue
+
+struct ResultImpl
+{
+    ResultImpl(std::shared_ptr<Task> task, bool isvalid);
+    ~ResultImpl() = default;
+    Any anyValue_;
+    Semaphore sem_;
+    std::shared_ptr<Task> task_;
+    std::atomic_bool isValid_;
+};
+
 class Result
 {
 public:
-    Result(std::shared_ptr<Task> sp, bool isvalid);
+    Result(std::shared_ptr<ResultImpl> impl);
     ~Result();
     void setValue(Any val);
     Any get();
 
 private:
-    Any anyValue_;
-    Semaphore sem_;
-    std::shared_ptr<Task> task_;
-    std::atomic_bool isValid_;
+    // Any anyValue_;
+    // Semaphore sem_;
+    // std::shared_ptr<Task> task_;
+    // std::atomic_bool isValid_;
+    std::shared_ptr<ResultImpl> impl_;
 };
 
 class Task
@@ -99,10 +121,12 @@ public:
     ~Task();
     virtual Any run();
     void exec();
-    void setResult(Result* res);
+    void setResult(std::shared_ptr<ResultImpl> impl);
 
 private:
-    Result* result_;
+    // 和task绑定的应该是ResultImpl而不是Result
+    // Result* result_;
+    std::shared_ptr<ResultImpl> impl_;
 
 };
 
@@ -131,7 +155,7 @@ public:
     void setMode(PoolMode mode);
     void setMaxThreadNum(int number);
     Result submitTask(std::shared_ptr<Task> task);
-    void start(int initThreadSize = 4);
+    void start();
 
     // 禁用拷贝构造函数 禁用拷贝赋值
     ThreadPool(const ThreadPool&) = delete;

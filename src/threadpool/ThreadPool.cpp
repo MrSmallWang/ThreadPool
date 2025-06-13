@@ -2,7 +2,7 @@
 #include <functional>
 #include <mutex>
 #include <thread>
-#include "threadpool/ThreadPool.hpp"
+#include "../../include/threadpool/ThreadPool.hpp"
 
 namespace ThreadPoolManual {
 
@@ -28,37 +28,43 @@ void Semaphore::wait()
     isZero_.wait(lock, [&]()->bool { return semaNum_ > 0; });
 }
 
-Result::Result(std::shared_ptr<Task> task,
-                bool isvalid = false)
-    : isValid_(isvalid)
-    , task_(task)
+ResultImpl::ResultImpl(std::shared_ptr<Task> task, bool isvalid = false)
+    : task_(task)
+    , isValid_(isvalid)
+{}
+
+Result::Result(std::shared_ptr<ResultImpl> impl)
+    : impl_(impl)
 {
-    task_->setResult(this);
-    Semaphore sem_;
+    // 由于这里的信号量在转移的时候会出现悬空指针的情况 因此这里的逻辑需要进行巧妙地调整。
+    impl_->task_->setResult(impl_);
+    // task_->setResult(this);
+    // Semaphore sem_;
 }
 
 Result::~Result()
 {}
 
-void Result::setValue(Any anyval)
-{
-    anyValue_ = std::move(anyval);
-    sem_.post();
-}
+// void Result::setValue(Any anyval)
+// {
+//     impl_->anyValue_
+//     anyValue_ = std::move(anyval);
+//     sem_.post();
+// }
 
 Any Result::get()
 {
-    if (!this->isValid_)
+    if (!this->impl_->isValid_)
     {
         std::cerr << "task submission error occurred..." << std::endl;
         throw "error getting result!";
     }
-    sem_.wait();
-    return std::move(this->anyValue_);
+    this->impl_->sem_.wait();
+    return std::move(this->impl_->anyValue_);
 }
 
 Task::Task()
-    :result_(nullptr)
+    :impl_(nullptr)
 {}
 
 Task::~Task()
@@ -66,15 +72,21 @@ Task::~Task()
 
 void Task::exec()
 {
-    if (result_ != nullptr)
+    if (impl_)
     {
-        this->result_->setValue(this->run());
+        Any anyval = this->run();
+        this->impl_->anyValue_ = std::move(anyval);
+        this->impl_->sem_.post();
     }
+    // if (result_ != nullptr)
+    // {
+    //     this->result_->setValue(this->run());
+    // }
 }
 
-void Task::setResult(Result* res)
+void Task::setResult(std::shared_ptr<ResultImpl> impl)
 {
-    this->result_ = res;
+    this->impl_ = impl;
 }
 
 Thread::Thread(std::function<void(int)> func)
@@ -134,7 +146,7 @@ Result ThreadPool::submitTask(std::shared_ptr<Task> sp)
             [&]()->bool { return taskQueue_.size() < (size_t)taskQueMaxThreshold_; }))
     {
         std::cerr << "task queue is full, fail submission." << std::endl;
-        return Result(sp, false);
+        return Result(std::make_shared<ResultImpl>(sp, false));
     }
     taskQueue_.emplace(sp);
     taskQueSize_++;
@@ -152,13 +164,12 @@ Result ThreadPool::submitTask(std::shared_ptr<Task> sp)
         curThreadSize_++;
         idleThreadSize_++;
     }
-    return Result(sp, true);
+    return Result(std::make_shared<ResultImpl>(sp, true));
 }
 
-void ThreadPool::start(int threadSize)
+void ThreadPool::start()
 {
     isPoolRunning_ = true;
-    initThreadSize_ = threadSize;
     for (int i = 0; i < initThreadSize_; i++)
     {
         auto ptr = std::make_unique<Thread>(std::bind(&ThreadPool::threadFunc, this, std::placeholders::_1));
