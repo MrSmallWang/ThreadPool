@@ -8,6 +8,7 @@ namespace ThreadPoolManual {
 
 constexpr int TASK_QUEUE_MAX_SIZE = INT32_MAX;
 constexpr int THREAD_MAX_IDLE_TIME = 60;
+const int CPU_KERNEL_NUM = std::thread::hardware_concurrency();
 
 Semaphore::Semaphore(int semnum = 0)
     : semaNum_(semnum)
@@ -38,19 +39,10 @@ Result::Result(std::shared_ptr<ResultImpl> impl)
 {
     // 由于这里的信号量在转移的时候会出现悬空指针的情况 因此这里的逻辑需要进行巧妙地调整。
     impl_->task_->setResult(impl_);
-    // task_->setResult(this);
-    // Semaphore sem_;
 }
 
 Result::~Result()
 {}
-
-// void Result::setValue(Any anyval)
-// {
-//     impl_->anyValue_
-//     anyValue_ = std::move(anyval);
-//     sem_.post();
-// }
 
 Any Result::get()
 {
@@ -78,10 +70,6 @@ void Task::exec()
         this->impl_->anyValue_ = std::move(anyval);
         this->impl_->sem_.post();
     }
-    // if (result_ != nullptr)
-    // {
-    //     this->result_->setValue(this->run());
-    // }
 }
 
 void Task::setResult(std::shared_ptr<ResultImpl> impl)
@@ -112,7 +100,7 @@ void Thread::start()
 
 
 ThreadPool::ThreadPool()
-    : initThreadSize_(0)
+    : initThreadSize_(CPU_KERNEL_NUM)
     , curThreadSize_(0)
     , idleThreadSize_(0)
     , taskQueMaxThreshold_(TASK_QUEUE_MAX_SIZE)
@@ -180,6 +168,7 @@ void ThreadPool::start()
         threads_[i]->start();
         ++idleThreadSize_;
         ++curThreadSize_;
+        std::cout << "thread " << std::this_thread::get_id() << "started!" << std::endl;
     }
 }
 
@@ -251,6 +240,8 @@ void ThreadPool::threadFunc(int threadid)
         {
             threads_.erase(threadid);
             exitCondition_.notify_all();
+            std::cout << "threadid: " << std::this_thread::get_id() << "exit!"
+                         << std::endl;
             return;
         }
     }

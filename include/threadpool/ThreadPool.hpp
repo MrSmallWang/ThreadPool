@@ -84,10 +84,6 @@ private:
 
 class Task;
 
-// TODO 1. integrate menmber variable into a struct 
-// 2. make shared ptr of the struct to the Result class
-// 3. solve the problem of dangling pointer and revise the logic of setValue
-
 struct ResultImpl
 {
     ResultImpl(std::shared_ptr<Task> task, bool isvalid);
@@ -103,14 +99,9 @@ class Result
 public:
     Result(std::shared_ptr<ResultImpl> impl);
     ~Result();
-    void setValue(Any val);
     Any get();
 
 private:
-    // Any anyValue_;
-    // Semaphore sem_;
-    // std::shared_ptr<Task> task_;
-    // std::atomic_bool isValid_;
     std::shared_ptr<ResultImpl> impl_;
 };
 
@@ -119,15 +110,12 @@ class Task
 public:
     Task();
     ~Task();
-    virtual Any run();
+    virtual Any run() = 0;
     void exec();
     void setResult(std::shared_ptr<ResultImpl> impl);
 
 private:
-    // 和task绑定的应该是ResultImpl而不是Result
-    // Result* result_;
     std::shared_ptr<ResultImpl> impl_;
-
 };
 
 class Thread
