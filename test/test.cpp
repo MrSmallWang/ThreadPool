@@ -5,6 +5,7 @@
 
 #include "../include/threadpool/ThreadPool.hpp"
 #include "../src/threadpool/ThreadPool.cpp"
+#include "../include/arrays/aligned_arr.hpp"
 
 using namespace ThreadPoolManual;
 
@@ -82,27 +83,29 @@ private:
 
 int main()
 {
-    ThreadPool pool;
-    pool.setMode(PoolMode::MODE_CACHED);
-    pool.start();
-
-    TaskWrapper task1st_;
-    task1st_.createTasks(std::make_shared<MyTask>(0, 100000));
-    std::vector<std::shared_ptr<MyTask>> tasks = task1st_.getTask();
-
-    std::vector<Result> results{};
-    for (std::shared_ptr<MyTask> task : tasks)
     {
-        Result res = pool.submitTask(task);
-        results.emplace_back(res);
+        ThreadPool pool;
+        pool.setMode(PoolMode::MODE_CACHED);
+        pool.start();
+
+        TaskWrapper task1st_;
+        task1st_.createTasks(std::make_shared<MyTask>(0, 100000));
+        std::vector<std::shared_ptr<MyTask>> tasks = task1st_.getTask();
+
+        std::vector<Result> results{};
+        for (std::shared_ptr<MyTask> task : tasks)
+        {
+            Result res = pool.submitTask(task);
+            results.emplace_back(res);
+        }
+        int sum = 0;
+        for (Result res : results)
+        {
+            int sum1 = res.get().cast_<int>();
+            sum += sum1;
+        }
+        std::cout << "sum is " << sum << std::endl;
     }
-    int sum = 0;
-    for (Result res : results)
-    {
-        int sum1 = res.get().cast_<int>();
-        sum += sum1;
-    }
-    std::cout << "sum is " << sum << std::endl;
 
     return 0;
 }
